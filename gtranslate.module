@@ -1,0 +1,95 @@
+<?php
+/**
+ * @version $Id$
+ **/
+
+function gtranslate_nodeapi($node, $op) {
+  if ($op == 'prepare translation') {
+    $src = $node->translation_source;
+    $node->title = gtranslate_translate_html($src->title, $src->language, $node->language);
+    $node->body = gtranslate_translate_html($src->body, $src->language, $node->language);
+    $node->translated_by_google = TRUE;
+  }
+}
+
+function gtranslate_translate_html($html, $src_lang, $dst_lang) {
+  if (strlen($html)<1000) {
+    return gtranslate_translate_string($html, $src_lang, $dst_lang);
+  }
+  else {
+    // Separate the content into chunks after to line break and paragraph tags
+    $html = preg_split('/(<br\s?\/>)|(<\/p>)/', $html, -1, PREG_SPLIT_DELIM_CAPTURE );
+    $chunk_count = count($html);
+    $chunks = array();
+    for ($i=0; $i<$chunk_count; $i+=3) {
+      if ($i+2 >= $chunk_count) {
+        $chunks[] = $html[$i];
+      }
+      else {
+        $chunks[] = $html[$i] . $html[$i+1] . $html[$i+2];
+      }
+    }
+
+    // Separate large html-chunks into sentences
+    $separated = array();
+    foreach ($chunks as $chunk) {
+      if (strlen($chunk) > 600) {
+        $sentences = preg_split('/(\. )/', $chunk, -1, PREG_SPLIT_DELIM_CAPTURE);
+        $sentence_count = count($sentences);
+        $schunk = '';
+        $schunks = array();
+        for ($i=0; $i<$sentence_count; $i+=2) {
+          $sentence = $sentences[$i] . $sentences[$i+1];
+          if (strlen($schunk) + strlen($sentence) < 500) {
+            $schunk .= $sentence;
+          }
+          else {
+            if (!empty($schunk)) {
+              $separated[] = $schunk;
+            }
+            $schunk = $sentence;
+          }
+        }
+        if(!empty($schunk)) {
+          $separated[] = $schunk;
+          $schunk = '';
+        }
+      }
+      else {
+        $separated[] = $chunk;
+      }
+    }
+    
+    // Join small chunks to minimize the number of calls needed
+    $joined = array();
+    foreach ($separated as $chunk) {
+      if (!empty($joined) && (strlen($joined[count($joined)-1]) + strlen($chunk) < 1200)) {
+        $joined[count($joined)-1] .= $chunk;
+      }
+      else {
+        $joined[] = $chunk;
+      }
+    }
+    
+    $translated = array();
+    foreach ($joined as $string) {
+      $translated[] = gtranslate_translate_string($string, $src_lang, $dst_lang);
+    }
+    
+    return join($translated);
+  }
+}
+
+function gtranslate_translate_string($text, $src_lang, $dst_lang) {
+  $pair = $src_lang . '|' . $dst_lang;
+  $response = file_get_contents(sprintf("http://ajax.googleapis.com/ajax/services/language/translate?v=1.0&q=%s&langpair=%s",
+    urlencode($text), urlencode($pair)));
+  $robj = json_decode($response);
+
+  if ($robj->responseStatus==200) {
+    return $robj->responseData->translatedText;
+  }
+  else {
+    return FALSE;
+  }
+}

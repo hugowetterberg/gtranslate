@@ -1,0 +1,5 @@
+name = Google Translate
+version = "6.x-0.1"
+core = "6.x"
+description = Aids translation by consulting Google Translate
+dependencies[] = translation
