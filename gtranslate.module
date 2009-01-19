@@ -4,7 +4,7 @@
  **/
 
 function gtranslate_nodeapi($node, $op) {
-  if ($op == 'prepare translation') {
+  if ($op == 'prepare translation' && (!isset($node->no_automated_translation) || !$node->no_automated_translation)) {
     $src = $node->translation_source;
     $node->title = gtranslate_translate_html($src->title, $src->language, $node->language);
     $node->body = gtranslate_translate_html($src->body, $src->language, $node->language);
